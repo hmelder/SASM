@@ -21,3 +21,4 @@ doc/*
 .qmake.stash
 sasm.app
 *.o
+*.swp
