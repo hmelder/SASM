@@ -47,23 +47,25 @@
 
 QString Common::applicationDataPath()
 {
+    QString appDir = QCoreApplication::applicationDirPath();
     #ifdef Q_OS_WIN32
-        QString appDir = QCoreApplication::applicationDirPath();
-        if (! QFile::exists(appDir + "/NASM")) {
-            appDir = QCoreApplication::applicationDirPath() + "/Windows";
-        }
-        if (! QFile::exists(appDir + "/NASM")) {
-            appDir = QCoreApplication::applicationDirPath();
+        if (! QFile::exists(appendPath(appDir, "NASM"))) {
+            appDir = appendPath(appDir, "Windows");
         }
         return appDir;
+    #elif defined(Q_OS_MAC)
+        /* The default application directory path for macOS applications
+         * is "ABSOLUTE_BUNDLE_PATH/MacOS". We remove "/MacOS", and
+         * add the sasm resources path.
+         */
+        return appendPath(appDir.left(appDir.length() - 6), "Resources/sasm");
     #else
-        QString path = QCoreApplication::applicationDirPath();
-        QString appDir = path.left(path.length() - 4) + QString("/share/sasm"); //replace /bin with /share/sasm
+        appDir = appendPath(appDir.left(appDir.length() - 4), "/share/sasm"); //replace /bin with /share/sasm
         if (! QFile::exists(appDir)) {
-            appDir = QCoreApplication::applicationDirPath() + "/share/sasm";
+            appDir = appendPath(appDir, "/share/sasm");
         }
         if (! QFile::exists(appDir)) {
-            appDir = QCoreApplication::applicationDirPath() + "/Unix/share/sasm";
+            appDir = appendPath(appDir, "/Unix/share/sasm");
         }
         return appDir;
     #endif
@@ -85,4 +87,9 @@ QString Common::pathInTemp(QString path)
     }
     tempPath = QDir::toNativeSeparators(tempPath);
     return tempPath;
+}
+
+QString Common::appendPath(const QString& path1, const QString& path2)
+{
+    return QDir::cleanPath(path1 + QDir::separator() + path2);
 }

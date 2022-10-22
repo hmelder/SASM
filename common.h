@@ -55,6 +55,7 @@
 namespace Common {
     QString applicationDataPath();
     QString pathInTemp(QString path);
+    QString appendPath(const QString& path1, const QString& path2);
 }
 
 #endif // COMMON_H

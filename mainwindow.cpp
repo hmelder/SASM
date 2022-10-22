@@ -849,13 +849,21 @@ void MainWindow::buildProgram(bool debugMode)
     QString assemblerPath = assembler->getAssemblerPath();
     if (settings.contains("assemblerpath"))
         assemblerPath = settings.value("assemblerpath").toString();
+    /* Platform specific assembler options
+     */
     #ifdef Q_OS_WIN32
         QString assemblerOptions = "-f win32 $SOURCE$ -l $LSTOUTPUT$ -o $PROGRAM.OBJ$";
+    /* macOS uses the macho object file format
+     */
+    #elif defined(Q_OS_MACOS)
+        QString assemblerOptions = "-f macho64 $SOURCE$ -l $LSTOUTPUT$ -o $PROGRAM.OBJ$";
     #else
         QString assemblerOptions = "-f elf32 $SOURCE$ -l $LSTOUTPUT$ -o $PROGRAM.OBJ$";
     #endif
+        /*
     if (settings.contains("assemblyoptions"))
         assemblerOptions = settings.value("assemblyoptions").toString();
+    */
     QStringList assemblerArguments = assemblerOptions.split(QChar(' '));
     assemblerArguments.replaceInStrings("$SOURCE$", Common::pathInTemp("program.asm"));
     assemblerArguments.replaceInStrings("$LSTOUTPUT$", Common::pathInTemp("program.lst"));
@@ -863,6 +871,7 @@ void MainWindow::buildProgram(bool debugMode)
         Common::pathInTemp(settings.value("objectfilename", "program.o").toString()));
     assemblerArguments.replaceInStrings("$PROGRAM$", Common::pathInTemp("SASMprog.exe"));
     assemblerArguments.replaceInStrings("$MACRO.OBJ$", stdioMacros);
+
     QProcess assemblerProcess;
     QString assemblerOutput = Common::pathInTemp("compilererror.txt");
     assemblerProcess.setStandardOutputFile(assemblerOutput);
@@ -884,6 +893,8 @@ void MainWindow::buildProgram(bool debugMode)
 
     if (assemblerProcess.error() != QProcess::UnknownError) {
         printLogWithTime(tr("Unable to start assembler. Check your settings.") + '\n', Qt::red);
+        QByteArray asmErr = assemblerProcess.readAllStandardError();
+        printLog(QString::fromUtf8(asmErr), Qt::red);
         return;
     }
 
@@ -901,6 +912,15 @@ void MainWindow::buildProgram(bool debugMode)
             macro.setFileName(applicationDataPath() + "/NASM/macro64.o");
         }
         macro.copy(stdioMacros);
+    #elif defined(Q_OS_MACOS)
+        QString linker = settings.value("linkerpath", "gcc").toString();
+
+        if (settings.value("mode", QString("x86")).toString() == "x86") {
+            macro.setFileName(applicationDataPath() + "/NASM/macro.o");
+        } else {
+            macro.setFileName(applicationDataPath() + "/NASM/macro64.o");
+        }
+        macro.copy(stdioMacros);
     #else
         QString gcc = "gcc";
         QString linker = settings.value("linkerpath", "gcc").toString();
@@ -911,12 +931,23 @@ void MainWindow::buildProgram(bool debugMode)
         QStringList gccMArguments;
         gccMArguments << "-x" << "c" << Common::pathInTemp("macro.c") << "-c" << "-g" << "-o" << stdioMacros;
         if (settings.value("mode", QString("x86")).toString() == "x86")
-            gccMArguments << "-m32";
+            gccMArguments << "-m32" << "-Wno-implicit-function-declaration";
         else
-            gccMArguments << "-m64";
+            gccMArguments << "-m64" << "-Wno-implicit-function-declaration";
         QProcess gccMProcess;
+        printLogWithTime(tr("Compiling internal auxiliary macro...") + '\n', Qt::blue);
         gccMProcess.start(gcc, gccMArguments);
         gccMProcess.waitForFinished();
+
+        QByteArray gccMErr = gccMProcess.readAllStandardError();
+        QByteArray gccMInfo = gccMProcess.readAllStandardOutput();
+        if (!gccMErr.isEmpty()) {
+          printLogWithTime(tr("Macro compilation errors occurred:") + '\n', Qt::red);
+          if (!gccMInfo.isEmpty()) {
+            printLog(QString::fromUtf8(gccMInfo), Qt::black);
+          } 
+          printLog(QString::fromUtf8(gccMErr), Qt::red);
+        } 
     #endif
 
     //! Final linking

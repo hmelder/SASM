@@ -196,11 +196,18 @@ void NASM::putDebugString(CodeEditor *code)
 QString NASM::getAssemblerOptions()
 {
     QString options;
+    /* Platform specific assembler options
+     */
     #ifdef Q_OS_WIN32
         if (isx86())
             options = "-f win32 $SOURCE$ -l $LSTOUTPUT$ -o $PROGRAM.OBJ$";
         else
             options = "-f win64 $SOURCE$ -l $LSTOUTPUT$ -o $PROGRAM.OBJ$";
+    #elif defined(Q_OS_MACOS)
+        if (isx86())
+            options = "-f macho32 $SOURCE$ -l $LSTOUTPUT$ -o $PROGRAM.OBJ$";
+        else
+            options = "-f macho64 $SOURCE$ -l $LSTOUTPUT$ -o $PROGRAM.OBJ$";
     #else
         if (isx86())
             options = "-f elf32 $SOURCE$ -l $LSTOUTPUT$ -o $PROGRAM.OBJ$";
